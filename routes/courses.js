@@ -4,6 +4,7 @@ const express = require('express');
 const { asyncHandler } = require('../middleware/async-handler');
 const { Course } = require('../models');
 const { authenticateUser } = require('../middleware/auth-user');
+const { restart } = require('nodemon');
 
 // Construct a router instance.
 const router = express.Router();
@@ -22,10 +23,9 @@ router.get('/:id', asyncHandler(async (req, res) => {
 
 // Route that creates a course.
 router.post('/', authenticateUser, asyncHandler(async (req, res) => {
-    const user = req.currentUser;
     try {
-        await Course.create(req.body);
-        res.status(201).json({ "message": "Course successfully created!" });
+        const course = await Course.create(req.body);
+        res.status(201).json({ "message": "Course successfully created!" }).location(`/api/courses/${course.id}`).end();
     } catch (error) {
         if (error.name === 'SequelizeValidationError' || error.name === 'SequelizeUniqueConstraintError') {
             const errors = error.errors.map(err => err.message);
@@ -38,11 +38,15 @@ router.post('/', authenticateUser, asyncHandler(async (req, res) => {
 
 // Route that returns the specific course.
 router.put('/:id', authenticateUser, asyncHandler(async (req, res) => {
-    let course;
     try {
-        course = await Course.findByPk(req.params.id);
+        const course = await Course.findByPk(req.params.id);
         if(course) {
-            await course.update(req.body);
+            if (course.userId === req.currentUser.id) {
+                await course.update(req.body);
+                res.status(204).json({ "message": "Course successfully updated!" })
+            } else {
+                res.status(403).json({ "message": "Not authorized to update the course!" })
+            }
         } else {
             res.status(404).json({ "message": "Course " + req.params.id + " does not exit" })
         }
@@ -57,10 +61,15 @@ router.put('/:id', authenticateUser, asyncHandler(async (req, res) => {
 }));
 
 // Route that deletes the specific course.
-router.delete('/:id', asyncHandler(async (req, res) => {
+router.delete('/:id', authenticateUser, asyncHandler(async (req, res) => {
     const course = await Course.findByPk(req.params.id);
     if (course) {
-        await course.destroy();
+        if (course.userId === req.currentUser.id) {
+            await course.destroy();
+            res.status(204).json( {"message": "Course sucessfully deleted"} )
+        } else {
+            res.status(403).json({ "message": "Not authorized to delete the course!" })
+        }
     } else {
         res.status(404).json({ "message": "Course " + req.params.id + " does not exit" })
     }

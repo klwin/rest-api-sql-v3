@@ -50,7 +50,5 @@ exports.authenticateUser = async (req, res, next) => {
     } else {
         next();
     }
-
-    next();
    
   };
