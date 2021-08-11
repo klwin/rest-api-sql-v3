@@ -3,6 +3,7 @@
 const express = require('express');
 const { asyncHandler } = require('../middleware/async-handler');
 const { Course } = require('../models');
+const { User } = require('../models');
 const { authenticateUser } = require('../middleware/auth-user');
 const { restart } = require('nodemon');
 
@@ -11,13 +12,17 @@ const router = express.Router();
 
 // Route that returns all courses.
 router.get('/', asyncHandler(async (req, res) => {
-    const courses = await Course.findAll({ attributes: {exclude: ['createdAt','updatedAt']} });
+    const courses = await Course.findAll({ 
+        include: [{ model: User, as: 'userInfo', attributes: {exclude: ['password,createdAt','updatedAt']} }], 
+        attributes: {exclude: ['createdAt','updatedAt']} });
     res.json(courses);
 }));
 
 // Route that returns the specific course.
 router.get('/:id', asyncHandler(async (req, res) => {
-    const course = await Course.findByPk(req.params.id, { attributes: {exclude: ['createdAt','updatedAt']} });
+    const course = await Course.findByPk(req.params.id, {
+        include : [{ model: User, as: 'userInfo', attributes: {exclude: ['password','createdAt','updatedAt']} }],
+        attributes: {exclude: ['createdAt','updatedAt']} });
     res.json(course);
 }));
 
@@ -25,7 +30,7 @@ router.get('/:id', asyncHandler(async (req, res) => {
 router.post('/', authenticateUser, asyncHandler(async (req, res) => {
     try {
         const course = await Course.create(req.body);
-        res.status(201).json({ "message": "Course successfully created!" }).location(`/api/courses/${course.id}`).end();
+        res.status(201).location(`/api/courses/${course.id}`).end();
     } catch (error) {
         if (error.name === 'SequelizeValidationError' || error.name === 'SequelizeUniqueConstraintError') {
             const errors = error.errors.map(err => err.message);
